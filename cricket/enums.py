@@ -1,7 +1,8 @@
 class PlayerType:
     BATSMAN = "BATSMAN"
     BOWLER = "BOWLER"
-    ALLROUNDER = "ALLROUNDER"
+    ALLROUNDER = "ALL-ROUNDER"
+    KEEPER = "WICKET-KEEPER"
 
 
 class Toss:
