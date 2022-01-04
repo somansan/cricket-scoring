@@ -2,8 +2,10 @@ import random
 import sys
 from random import choice
 import models as m
+from cricket.constants import TOTAL_WICKETS, TOTAL_OVERS, TOTAL_INNINGS
 from cricket.crud import get_teams, insert_match, insert_live_play, get_last_match_details, fetch_players_by_team
 from cricket.enums import Toss, TossDecision
+from cricket.manager import GameManager, TeamManager
 from database import get_db
 from initialize import setup_database, fill_sample_data
 
@@ -11,9 +13,6 @@ from initialize import setup_database, fill_sample_data
 
 # setup_database()
 # fill_sample_data()
-max_overs = 10
-max_wickets = 10
-total_innings = 2
 
 
 def full_name(player: m.Player):
@@ -22,6 +21,8 @@ def full_name(player: m.Player):
 
 print("SELECT TEAMS TO START MATCH: ")
 try:
+    htm = None
+    atm = None
     teams = get_teams(db=get_db())
     for team in teams:
         print(f"{team.id} : {team.name}")
@@ -31,50 +32,62 @@ try:
     for team in teams:
         if team.id == home_team:
             home_team = team
+            htm = TeamManager(team.id, team.name)
             print(team)
 
     away_team = input("TEAM B: ")
     for team in teams:
         if team.id == away_team:
             away_team = team
+            atm = TeamManager(team.id, team.name)
             print(team)
 
+    gm = GameManager()
     home_team_toss = Toss.HEADS
     toss = random.choice([Toss.HEADS, Toss.TAILS])
+    toss_result = random.choice([TossDecision.BAT, TossDecision.BOWL])
 
     if home_team_toss == toss:
-        toss_won = home_team
-        toss_failed = away_team
+        gm.toss(htm)
+        if toss_result == TossDecision.BAT:
+            gm.batting(htm)
+            gm.fielding(atm)
+        else:
+            gm.fielding(htm)
+            gm.batting(atm)
     else:
-        toss_won = away_team
-        toss_failed = home_team
+        gm.toss(atm)
+        if toss_result == TossDecision.BAT:
+            gm.batting(atm)
+            gm.fielding(htm)
+        else:
+            gm.fielding(atm)
+            gm.batting(htm)
 
-    toss_result = random.choice([TossDecision.BAT, TossDecision.BOWL])
-    toss_decision = f"{toss_won.name} chose to {toss_result} first."
-    print(f"\n{toss_won.name} WON THE TOSS")
+    toss_decision = f"{gm.toss.name} chose to {toss_result} first."
+    print(f"\n{gm.toss.name} WON THE TOSS")
     print(toss_decision)
 
     print("\nSTARTING MATCH...")
     match = m.Match(
-        home_team=home_team.id,
-        away_team=away_team.id,
-        venue='XYZ Stadium',
-        toss=toss_won.id,
+        home_team=htm.team_id,
+        away_team=atm.team_id,
+        venue=gm.venue,
+        toss=gm.toss.id,
         toss_decision=toss_decision,
-        max_overs=max_overs,
-        max_wickets=max_wickets
+        max_overs=TOTAL_OVERS,
+        max_wickets=TOTAL_WICKETS
     )
     insert_match(db=get_db(), values=[match])
     match_id = get_last_match_details(get_db()).match_id
-    batting, fielding = (toss_won, toss_failed) if toss_result == TossDecision.BAT else (toss_failed, toss_won)
 
-    for inning in range(1, total_innings+1):
+    for inning in range(1, TOTAL_INNINGS + 1):
         over = 0
-        batting_team_players = fetch_players_by_team(get_db(), batting.id)
-        fielding_team_players = fetch_players_by_team(get_db(), fielding.id)
+        batting_team_players = fetch_players_by_team(get_db(), gm.batting.id)
+        fielding_team_players = fetch_players_by_team(get_db(), gm.fielding.id)
         on_strike = batting_team_players.pop(0) if batting_team_players else None
         non_strike = batting_team_players.pop(0) if batting_team_players else None
-        while over < max_overs:
+        while over < TOTAL_OVERS:
             curr_over = []
             on_bowl = fielding_team_players.pop()
             for ball in range(1, 7):
@@ -91,8 +104,8 @@ try:
                             on_bowl=full_name(on_bowl),
                             run=run,
                             wicket=False,
-                            batting=batting,
-                            fielding=fielding
+                            batting=gm.batting.id,
+                            fielding=gm.fielding.id
                         )
                     )
                 elif run >= 0 and (run % 2 != 0):
@@ -107,8 +120,8 @@ try:
                             on_bowl=full_name(on_bowl),
                             run=run,
                             wicket=False,
-                            batting=batting,
-                            fielding=fielding
+                            batting=gm.batting.id,
+                            fielding=gm.fielding.id
                         )
                     )
                     on_strike, non_strike = non_strike, on_strike
@@ -124,8 +137,8 @@ try:
                             on_bowl=full_name(on_bowl),
                             run=run,
                             wicket=True,
-                            batting=batting,
-                            fielding=fielding
+                            batting=gm.batting.id,
+                            fielding=gm.fielding.id
                         )
                     )
                     on_strike = batting_team_players.pop(0) if batting_team_players else None

@@ -52,7 +52,7 @@ def get_last_match_details(db: Session) -> m.Match:
 
 
 def fetch_players_by_team(db: Session, team: str) -> List[m.Player]:
-    return db.query(m.Player).where(m.Player.team == team).all()
+    return db.query(m.Player).where(m.Player.team == team).all() 
 
 
 if __name__ == "__main__":
