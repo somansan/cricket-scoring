@@ -44,8 +44,6 @@ class Match(Base):
     venue = Column(String)
     toss = Column(String, ForeignKey("teams.id"))
     toss_decision = Column(String)
-    max_overs = Column(Integer)
-    max_wickets = Column(Integer)
     match_result = Column(String)
     man_of_match = Column(Integer, ForeignKey("players.id"))
     home_team_score = Column(Integer)

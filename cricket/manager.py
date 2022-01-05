@@ -1,14 +1,16 @@
-from typing import List
+from typing import List, Optional
 from math import floor
 from constants import TOTAL_OVERS
 
 
 class PlayerManager:
-    id: int = 0
-    name: str = ''
-    score: int = 0
-    wickets: int = 0
-    balls_faced: int = 0
+
+    def __init__(self, player_id, name):
+        self.player_id: int = player_id
+        self.name: str = name
+        self.score: int = 0
+        self.wickets: int = 0
+        self.balls_faced: int = 0
 
     def strike_rate(self):
         return self.score / self.balls_faced
@@ -17,79 +19,44 @@ class PlayerManager:
 class TeamManager:
 
     def __init__(self, team_id: str, name: str):
-        self.team_id: str = ''
-        self.name: str = ''
-        self.score: int = ''
+        self.team_id: str = team_id
+        self.name: str = name
+        self.score: int = 0
         self.overs: float = 0.0
         self.wickets_down: int = 0
         self.target_score: int = 0
-        self.players: List[PlayerManager]
+        self.players = Optional[List[PlayerManager]]
 
     def curr_rr(self):
         over, balls = floor(self.overs), int((self.overs - int(self.overs)) * 10)
         return round(self.score / (over + balls / 6), 2)
 
     def req_rr(self):
-        over, balls = floor(self.overs), int((self.overs - int(self.overs)) * 10)
-        return round((self.target_score - self.score) / (TOTAL_OVERS - (over + balls / 6)), 2)
+        try:
+            over, balls = floor(self.overs), int((self.overs - int(self.overs)) * 10)
+            return round((self.target_score - self.score) / (TOTAL_OVERS - (over + balls / 6)), 2)
+        except ZeroDivisionError:
+            return 0
 
 
 class GameManager:
 
     def __init__(self, venue: str = 'Melbourne'):
         self.venue = venue
-        self._batting = None
-        self._fielding = None
-        self._toss = None
         self.inning = 1
-        self._on_strike = None
-        self._non_strike = None
-        self._on_bowl = None
+        self.batting = Optional[TeamManager]
+        self.fielding = Optional[TeamManager]
+        self.toss = Optional[TeamManager]
+        self.on_strike = Optional[PlayerManager]
+        self.non_strike = Optional[PlayerManager]
+        self.on_bowl = Optional[PlayerManager]
 
-    @property
-    def toss(self):
-        return self._toss
-
-    @toss.setter
-    def toss(self, value: TeamManager):
-        self._toss = value
-
-    @property
-    def batting(self):
-        return self._batting
-
-    @batting.setter
-    def batting(self, value: TeamManager):
-        self._batting = value
-
-    @property
-    def fielding(self):
-        return self._fielding
-
-    @fielding.setter
-    def fielding(self, value: TeamManager):
-        self._fielding = value
-
-    @property
-    def on_strike(self):
-        return self._on_strike
-
-    @on_strike.setter
-    def on_strike(self, value: PlayerManager):
-        self._on_strike = value
-
-    @property
-    def non_strike(self):
-        return self._non_strike
-
-    @non_strike.setter
-    def non_strike(self, value: PlayerManager):
-        self._non_strike = value
-
-    @property
-    def on_bowl(self):
-        return self._on_bowl
-
-    @on_bowl.setter
-    def on_bowl(self, value: PlayerManager):
-        self._on_bowl = value
+    def __str__(self):
+        return f"""
+    {self.batting.team_id}: {self.batting.score}/{self.batting.wickets_down}    OVERS: {self.batting.overs}
+    {self.on_strike.name.upper()}*  : {self.on_strike.score}                    
+    {self.non_strike.name.upper()}  : {self.non_strike.score}
+    CURR_RR : {self.batting.curr_rr()}                            
+    REQ_RR  : {'-' if self.inning == 1 or not self.batting.req_rr() else self.batting.req_rr()}
+    ==================================
+"""
