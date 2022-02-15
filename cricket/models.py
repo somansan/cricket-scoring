@@ -25,15 +25,6 @@ class Team(Base):
     match_lost = Column(Integer)
     match_tied = Column(Integer)
 
-    def __str__(self):
-        return f"""
-        Team        : {self.name}
-        Code        : {self.id}
-        Match won   : {self.match_won}
-        Match lost  : {self.match_lost}
-        Match tied  : {self.match_tied}
-        """
-
 
 class Match(Base):
     __tablename__ = "match"

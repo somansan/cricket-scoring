@@ -1,24 +1,18 @@
 import random
 import time
 import models as m
-from cricket.constants import TOTAL_WICKETS, TOTAL_OVERS, TOTAL_INNINGS
+
+from cricket.utils import full_name, find_team_in_list
 from cricket.crud import get_teams, insert_match, insert_live_play, get_last_match_details, \
     fetch_players_by_team, update_team_win, update_team_ties, update_team_loss, update_player_score, \
     update_player_wickets, update_match, man_of_match
-from cricket.enums import Toss, TossDecision
+from cricket.enums import Toss, TossDecision, Constants as const
 from cricket.manager import GameManager, TeamManager, PlayerManager
 from database import get_db
 from initialize import setup_database, fill_sample_data
 
-"""fetch batsman logic, fetch bowler logic"""
-
 # setup_database()
 # fill_sample_data()
-
-
-def full_name(player: m.Player):
-    return player.first_name + " " + player.last_name
-
 
 print("SELECT TEAMS TO START MATCH: ")
 try:
@@ -30,18 +24,14 @@ try:
 
     print("\nEnter Team ID - ")
     home_team = input("TEAM A: ").upper()
-    for team in teams:
-        if team.id == home_team:
-            home_team = team
-            htm = TeamManager(team.id, team.name)
-            print(team)
+    htm = find_team_in_list(home_team, teams)
+    if not htm:
+        raise Exception("Team Not Found!")
 
     away_team = input("TEAM B: ").upper()
-    for team in teams:
-        if team.id == away_team:
-            away_team = team
-            atm = TeamManager(team.id, team.name)
-            print(team)
+    atm = find_team_in_list(away_team, teams)
+    if not atm:
+        raise Exception("Team Not Found!")
 
     gm = GameManager()
     home_team_toss = Toss.HEADS
@@ -80,7 +70,7 @@ try:
     insert_match(db=get_db(), values=[match])
     match_id = get_last_match_details(get_db()).match_id
 
-    for inning in range(1, TOTAL_INNINGS + 1):
+    for inning in range(1, const.TOTAL_INNINGS + 1):
         gm.inning = inning
         over = 0
         gm.batting.players = [
@@ -98,8 +88,9 @@ try:
         gm.on_strike = gm.batting.players.pop(0) if gm.batting.players else None
         gm.non_strike = gm.batting.players.pop(0) if gm.batting.players else None
         inning_complete = False
-        while over < TOTAL_OVERS and not inning_complete:
-            curr_over = []
+        while over < const.TOTAL_OVERS and not inning_complete:
+            curr_over_objects = []
+            gm.this_over = list()
             gm.on_bowl = gm.fielding.players.pop()
             for ball in range(1, 7):
                 if inning == 2 and gm.batting.score > gm.batting.target_score:
@@ -111,7 +102,7 @@ try:
                 if run < 0:
                     wicket = True
 
-                curr_over.append(
+                curr_over_objects.append(
                     m.LivePlay(
                         match_no=match_id,
                         innings=inning,
@@ -136,16 +127,20 @@ try:
                     update_player_score(get_db(), gm.on_strike.player_id, gm.on_strike.score)
                     update_player_wickets(get_db(), gm.on_bowl.player_id, 1)
                     gm.batting.wickets_down += 1
-                    if gm.batting.wickets_down >= TOTAL_WICKETS:
+                    gm.this_over.append('W')
+                    if gm.batting.wickets_down >= const.TOTAL_WICKETS:
                         inning_complete = True
                         break
+                    else:
+                        gm.on_strike = gm.batting.players.pop(0)
                 else:
                     gm.on_strike.score += run
                     gm.batting.score += run
+                    gm.this_over.append(str(run) if run > 0 else '.')
                     if run % 2 != 0:
                         gm.on_strike, gm.non_strike = gm.non_strike, gm.on_strike
 
-            insert_live_play(get_db(), curr_over)
+            insert_live_play(get_db(), curr_over_objects)
             if inning_complete:
                 break
             gm.on_strike, gm.non_strike = gm.non_strike, gm.on_strike
@@ -159,15 +154,16 @@ try:
             gm.fielding.players = []
             gm.batting.target_score = gm.fielding.score + 1
             print(
-                f"""{gm.batting.name} NEEDS {gm.batting.target_score} TO WIN IN {TOTAL_OVERS} OVERS."""
+                f"""{gm.batting.name} NEEDS {gm.batting.target_score} TO WIN IN {const.TOTAL_OVERS} OVERS."""
             )
-            time.sleep(3)
+            time.sleep(2)
             print(f"\nStarting 2nd innings...")
+            time.sleep(1)
 
     if gm.batting.score > gm.batting.target_score:
         update_team_win(get_db(), gm.batting.team_id)
         update_team_loss(get_db(), gm.fielding.team_id)
-        match_result = F"{gm.batting.name} won by {TOTAL_WICKETS - gm.batting.wickets_down} wickets."
+        match_result = F"{gm.batting.name} won by {const.TOTAL_WICKETS - gm.batting.wickets_down} wickets."
     elif gm.batting.score < gm.batting.target_score:
         update_team_win(get_db(), gm.fielding.team_id)
         update_team_loss(get_db(), gm.batting.team_id)
@@ -178,5 +174,6 @@ try:
         match_result = "MATCH TIED!"
 
     print(f"{match_result}")
+
 except Exception as e:
     raise e
